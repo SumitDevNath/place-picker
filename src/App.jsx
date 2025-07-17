@@ -1,15 +1,33 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Places from "./components/Places.jsx";
 import { AVAILABLE_PLACES } from "./data.js";
 import Modal from "./components/Modal.jsx";
 import DeleteConfirmation from "./components/DeleteConfirmation.jsx";
 import logoImg from "./assets/logo.png";
+import { sortPlacesByDistance } from "./loc.js";
+
+const storedIDs = JSON.parse(localStorage.getItem("selectedPlace")) || [];
+const storedPlaces = storedIDs.map((id) => {
+  return AVAILABLE_PLACES.find((place) => place.id === id);
+});
 
 function App() {
   const modal = useRef();
   const selectedPlace = useRef();
-  const [pickedPlaces, setPickedPlaces] = useState([]);
+  const [availablePlaces, setAvailablePlaces] = useState([]);
+  const [pickedPlaces, setPickedPlaces] = useState(storedPlaces);
+
+  useEffect(() => {
+    navigator.geolocation.getCurrentPosition((position) => {
+      const sortedPlaces = sortPlacesByDistance(
+        AVAILABLE_PLACES,
+        position.coords.latitude,
+        position.coords.longitude
+      );
+      setAvailablePlaces(sortedPlaces);
+    });
+  }, []);
 
   function handleStartRemovePlace(id) {
     modal.current.open();
@@ -28,6 +46,10 @@ function App() {
       const place = AVAILABLE_PLACES.find((place) => place.id === id);
       return [place, ...prevPickedPlaces];
     });
+    const storedIDs = JSON.parse(localStorage.getItem("selectedPlace")) || [];
+    if (storedIDs.indexOf(id) === -1) {
+      localStorage.setItem("selectedPlace", JSON.stringify([id, ...storedIDs]));
+    }
   }
 
   function handleRemovePlace() {
@@ -35,6 +57,12 @@ function App() {
       prevPickedPlaces.filter((place) => place.id !== selectedPlace.current)
     );
     modal.current.close();
+
+    const storedIDs = JSON.parse(localStorage.getItem("selectedPlace")) || [];
+    localStorage.setItem(
+      "selectedPlace",
+      JSON.stringify(storedIDs.filter((id) => id !== selectedPlace.current))
+    );
   }
 
   return (
@@ -63,7 +91,8 @@ function App() {
         />
         <Places
           title="Available Places"
-          places={AVAILABLE_PLACES}
+          fallbackText={"Sorting Places by default..."}
+          places={availablePlaces}
           onSelectPlace={handleSelectPlace}
         />
       </main>
